@@ -1,4 +1,4 @@
-package auth;
+package infrastructure.auth;
 
 import java.util.HashMap;
 import java.util.Map;

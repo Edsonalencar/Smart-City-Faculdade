@@ -1,4 +1,4 @@
-package cloud;
+package infrastructure.cloud;
 
 import core.SensorData;
 import utils.KeyManager;
@@ -11,14 +11,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class Datacenter {
+public class DatacenterService {
 
     private static final int PORT = 9999;
     // Simulação de Banco de Dados em Memória
     private static final List<SensorData> database = new ArrayList<>();
     private PrivateKey privateKey;
 
-    public Datacenter() {
+    public DatacenterService() {
         try {
             this.privateKey = (PrivateKey) KeyManager.loadKeyFromFile("dc_private.key");
         } catch (Exception e) {

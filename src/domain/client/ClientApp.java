@@ -1,9 +1,7 @@
-package client;
+package domain.client;
 
-import auth.AuthService;
-import cloud.Datacenter;
-
-import java.io.*;
+import infrastructure.auth.AuthService;
+import infrastructure.cloud.DatacenterService;
 
 public class ClientApp {
 
@@ -36,16 +34,16 @@ public class ClientApp {
             Thread.sleep(1000);
 
             System.out.println("\n--- 🔎 CONSULTA 1: Monitoramento de Poluição ---");
-            String report1 = Datacenter.generatePollutionReport();
+            String report1 = DatacenterService.generatePollutionReport();
             System.out.println(report1);
 
             Thread.sleep(1500);
 
             System.out.println("\n--- 🔎 CONSULTA 2: Alertas de Segurança Urbana ---");
-            String alert = Datacenter.checkNoiseAlerts();
+            String alert = DatacenterService.checkNoiseAlerts();
             System.out.println(alert);
 
-            String prediction = Datacenter.predictTemperatureTrend();
+            String prediction = DatacenterService.predictTemperatureTrend();
             System.out.println(prediction);
 
         } catch (InterruptedException e) {

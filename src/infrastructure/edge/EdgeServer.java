@@ -1,4 +1,4 @@
-package edge;
+package infrastructure.edge;
 
 import core.SensorData;
 import utils.*;

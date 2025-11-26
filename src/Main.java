@@ -1,7 +1,7 @@
-import client.ClientApp;
-import cloud.Datacenter;
-import device.Device;
-import edge.EdgeServer;
+import domain.client.ClientApp;
+import infrastructure.cloud.DatacenterService;
+import domain.device.Device;
+import infrastructure.edge.EdgeServer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +11,7 @@ public class Main {
         System.out.println("--- Iniciando Infraestrutura da Simulação ---");
 
         // 1. Infraestrutura
-        new Datacenter().start();
+        new DatacenterService().start();
         new EdgeServer().start();
 
         System.out.println("--- Iniciando Dispositivos ---");

@@ -1,6 +1,6 @@
-package device;
+package domain.device;
 
-import auth.AuthService;
+import infrastructure.auth.AuthService;
 import core.SensorData;
 import core.SensorDataGenerator;
 import utils.*;
