@@ -1,5 +1,6 @@
 package device;
 
+import auth.AuthService;
 import core.SensorData;
 import core.SensorDataGenerator;
 import utils.*;
@@ -12,13 +13,17 @@ import javax.crypto.SecretKey;
 public class Device {
 
     private final String deviceId;
+    private String token;
+
     private static final String EDGE_HOST = "localhost";
     private static final int EDGE_PORT = 9876;
 
     private PublicKey edgePublicKey;
 
-    public Device(String id) {
+    public Device(String id, String token) {
         this.deviceId = id;
+        this.token = token;
+
         try {
             // O dispositivo precisa da chave pública da Borda para criptografar a chave AES
             this.edgePublicKey = (PublicKey) KeyManager.loadKeyFromFile("edge_public.key");
@@ -31,6 +36,18 @@ public class Device {
     }
 
     public void startSending() {
+        // 1. Simulação do Passo de Autenticação
+        System.out.println("🔐 Dispositivo " + deviceId + ": Tentando autenticação...");
+
+        boolean isAuthenticated = AuthService.authenticate(deviceId, token);
+
+        if (!isAuthenticated) {
+            System.err.println("⛔ ERRO FATAL: Dispositivo " + deviceId + " falhou na autenticação! Credenciais inválidas.");
+            return; // Encerra a execução deste dispositivo
+        }
+
+        System.out.println("✅ Dispositivo " + deviceId + ": Autenticado com sucesso! Iniciando envio...");
+
         // Simulação: Envia dados durante 5 minutos (300 segundos)
         long endTime = System.currentTimeMillis() + (5 * 60 * 1000);
 
