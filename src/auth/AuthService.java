@@ -13,6 +13,7 @@ public class AuthService {
         authorizedDevices.put("DEV_02_SEMAFORO", "secret_token_02");
         authorizedDevices.put("DEV_03_TOTEM", "secret_token_03");
         authorizedDevices.put("DEV_04_CAIXA", "secret_token_04");
+        authorizedDevices.put("GESTOR_PUBLICO", "admin_secret_123");
     }
 
     public static boolean authenticate(String deviceId, String token) {

@@ -8,70 +8,74 @@ import utils.*;
 import java.net.*;
 import java.io.*;
 import java.security.PublicKey;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.crypto.SecretKey;
 
-public class Device {
-
+public class Device implements Runnable {
     private final String deviceId;
-    private String token;
-
-    private static final String EDGE_HOST = "localhost";
-    private static final int EDGE_PORT = 9876;
-
+    private final String token;
     private PublicKey edgePublicKey;
+
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
     public Device(String id, String token) {
         this.deviceId = id;
         this.token = token;
-
         try {
-            // O dispositivo precisa da chave pública da Borda para criptografar a chave AES
             this.edgePublicKey = (PublicKey) KeyManager.loadKeyFromFile("edge_public.key");
-            System.out.println("✅ Dispositivo " + id + ": Chave pública da Borda carregada.");
         } catch (Exception e) {
-            System.err.println("❌ Dispositivo " + id + ": Falha ao carregar chave pública. Abortando.");
             e.printStackTrace();
-            System.exit(1);
         }
     }
 
+    public void stop() {
+        running.set(false);
+        System.out.println("⏹️ Dispositivo " + deviceId + ": Recebeu ordem de parada.");
+    }
+
+    @Override
+    public void run() {
+        startSending();
+    }
+
     public void startSending() {
-        // 1. Simulação do Passo de Autenticação
+        // 1. Autenticação
         System.out.println("🔐 Dispositivo " + deviceId + ": Tentando autenticação...");
-
-        boolean isAuthenticated = AuthService.authenticate(deviceId, token);
-
-        if (!isAuthenticated) {
-            System.err.println("⛔ ERRO FATAL: Dispositivo " + deviceId + " falhou na autenticação! Credenciais inválidas.");
-            return; // Encerra a execução deste dispositivo
+        if (!AuthService.authenticate(deviceId, token)) {
+            System.err.println("⛔ ERRO FATAL: Dispositivo " + deviceId + " falhou na autenticação!");
+            return;
         }
+        System.out.println("✅ Dispositivo " + deviceId + ": Autenticado! Iniciando envio...");
 
-        System.out.println("✅ Dispositivo " + deviceId + ": Autenticado com sucesso! Iniciando envio...");
-
-        // Simulação: Envia dados durante 5 minutos (300 segundos)
-        long endTime = System.currentTimeMillis() + (5 * 60 * 1000);
+        // Define como rodando
+        running.set(true);
 
         try (DatagramSocket clientSocket = new DatagramSocket()) {
-            while (System.currentTimeMillis() < endTime) {
+            // Loop verifica a flag 'running' a cada iteração
+            while (running.get()) {
 
                 SensorData data = SensorDataGenerator.generate(deviceId);
                 byte[] encryptedMessage = buildEncryptedHybridMessage(data);
 
                 DatagramPacket sendPacket = new DatagramPacket(
                         encryptedMessage, encryptedMessage.length,
-                        InetAddress.getByName(EDGE_HOST), EDGE_PORT
+                        InetAddress.getByName("localhost"), 9876
                 );
 
                 clientSocket.send(sendPacket);
-                System.out.println("📤 Dispositivo " + deviceId + ": Enviando dados criptografados: " + data.toString());
+                System.out.println("📤 Dispositivo " + deviceId + ": Enviou dados.");
 
-                // Espera 2 ou 3 segundos
+                // Pausa entre envios
                 long sleepTime = (Math.random() > 0.5) ? 2000 : 3000;
                 Thread.sleep(sleepTime);
             }
+        } catch (InterruptedException e) {
+            System.out.println("⏹️ Dispositivo " + deviceId + ": Interrompido durante o sono.");
         } catch (Exception e) {
-            System.err.println("❌ Dispositivo " + deviceId + ": Erro ao enviar dados: " + e.getMessage());
+            System.err.println("❌ Dispositivo " + deviceId + " erro: " + e.getMessage());
         }
+
+        System.out.println("💤 Dispositivo " + deviceId + ": Desligado.");
     }
 
     private byte[] buildEncryptedHybridMessage(SensorData data) throws Exception {
