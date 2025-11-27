@@ -1,15 +1,16 @@
 package domain.device;
 
-import infrastructure.auth.AuthService;
 import core.SensorData;
 import core.SensorDataGenerator;
-import utils.*;
+import infrastructure.auth.AuthService;
+import utils.EncryptMessageUtil;
+import utils.KeyManager;
 
-import java.net.*;
-import java.io.*;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.security.PublicKey;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.crypto.SecretKey;
 
 public class Device implements Runnable {
     private final String deviceId;
@@ -55,11 +56,11 @@ public class Device implements Runnable {
             while (running.get()) {
 
                 SensorData data = SensorDataGenerator.generate(deviceId);
-                byte[] encryptedMessage = buildEncryptedHybridMessage(data);
+                byte[] encryptedMessage = EncryptMessageUtil.encryptedHybridMessage(data, edgePublicKey);
 
                 DatagramPacket sendPacket = new DatagramPacket(
-                        encryptedMessage, encryptedMessage.length,
-                        InetAddress.getByName("localhost"), 9876
+                    encryptedMessage, encryptedMessage.length,
+                    InetAddress.getByName("localhost"), 9876
                 );
 
                 clientSocket.send(sendPacket);
@@ -76,38 +77,5 @@ public class Device implements Runnable {
         }
 
         System.out.println("💤 Dispositivo " + deviceId + ": Desligado.");
-    }
-
-    private byte[] buildEncryptedHybridMessage(SensorData data) throws Exception {
-        // 1. Serializar o Objeto SensorData
-        byte[] payloadBytes;
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             ObjectOutputStream oos = new ObjectOutputStream(bos)) {
-            oos.writeObject(data);
-            payloadBytes = bos.toByteArray();
-        }
-
-        // 2. Gerar Chave AES de Sessão
-        SecretKey sessionKey = AESUtil.generateKey();
-
-        // 3. Criptografar o Payload com AES (rápido)
-        byte[] encryptedPayload = AESUtil.encrypt(payloadBytes, sessionKey);
-
-        // 4. Criptografar a Chave AES com a Chave Pública RSA da Borda
-        byte[] encryptedAesKeyBytes = RSAUtil.encrypt(sessionKey.getEncoded(), edgePublicKey);
-
-        // CORREÇÃO AQUI: O tamanho deve ser exatamente 256 bytes para RSA-2048
-        if (encryptedAesKeyBytes.length != 256) {
-            throw new IllegalArgumentException("Erro criptografia RSA: Tamanho inesperado " + encryptedAesKeyBytes.length);
-        }
-
-        // Não precisamos mais criar um buffer maior (rsaKeyBuffer de 512),
-        // usamos o encryptedAesKeyBytes diretamente pois ele já tem o tamanho correto.
-
-        ByteArrayOutputStream finalMessageStream = new ByteArrayOutputStream();
-        finalMessageStream.write(encryptedAesKeyBytes); // Escreve exatamente 256 bytes
-        finalMessageStream.write(encryptedPayload);     // Escreve o resto (dados)
-
-        return finalMessageStream.toByteArray();
     }
 }
