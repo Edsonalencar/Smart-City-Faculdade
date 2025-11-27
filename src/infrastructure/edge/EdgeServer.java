@@ -6,6 +6,7 @@ import utils.*;
 import java.net.*;
 import java.io.*;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import javax.crypto.SecretKey;
 
 public class EdgeServer {
@@ -14,11 +15,15 @@ public class EdgeServer {
 
     private static final int EDGE_PORT = 9876;
     private PrivateKey edgePrivateKey;
+    private PublicKey dcPublicKey;
+
     private boolean running; // Controle para poder parar o servidor se necessário
 
     public EdgeServer() {
         try {
             this.edgePrivateKey = (PrivateKey) KeyManager.loadKeyFromFile("edge_private.key");
+            this.dcPublicKey = (PublicKey) KeyManager.loadKeyFromFile("dc_public.key");
+
             System.out.println("✅ Borda: Chave privada carregada.");
         } catch (Exception e) {
             System.err.println("❌ Borda: Falha ao carregar chave. " + e.getMessage());
@@ -89,22 +94,32 @@ public class EdgeServer {
     }
 
     private void sendToDatacenter(SensorData data) {
-        // Na vida real, a Borda acumularia dados e enviaria em lote, ou enviaria um por um.
-        // Vamos enviar um por um via TCP para cumprir o requisito.
-
-        try (Socket socket = new Socket(DC_HOST, DC_PORT);
-             ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream())) {
-
-            // NOTA: O requisito pede que a mensagem seja criptografada novamente.
-            // Para simplificar a demonstração funcional agora, enviaremos o objeto.
-            // PARA NOTA MÁXIMA: Você deve reimplementar a lógica de 'buildEncryptedHybridMessage' aqui
-            // usando a chave pública do Datacenter (dc_public.key).
-
+        try {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            ObjectOutputStream oos = new ObjectOutputStream(bos);
             oos.writeObject(data);
-            // System.out.println("➡️ Borda: Enviado para Datacenter.");
 
-        } catch (IOException e) {
-            System.err.println("⚠️ Borda: Falha ao conectar no Datacenter: " + e.getMessage());
+            byte[] payloadBytes = bos.toByteArray();
+            SecretKey sessionKey = AESUtil.generateKey();
+
+            byte[] encryptedPayload = AESUtil.encrypt(payloadBytes, sessionKey);
+            byte[] encryptedAesKey = RSAUtil.encrypt(sessionKey.getEncoded(), dcPublicKey);
+
+            if (encryptedAesKey.length != 256) {
+                throw new IllegalStateException("Tamanho de chave criptografada incorreto!");
+            }
+
+            try (Socket socket = new Socket(DC_HOST, DC_PORT);
+                 OutputStream out = socket.getOutputStream()) {
+
+                out.write(encryptedAesKey);
+                out.write(encryptedPayload);
+                out.flush();
+            }
+
+            System.out.println("➡️ Borda: Dados encaminhados criptografados ao Datacenter.");
+        } catch (Exception e) {
+            System.err.println("⚠️ Borda: Falha ao enviar ao Datacenter: " + e.getMessage());
         }
     }
 }

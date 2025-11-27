@@ -1,8 +1,11 @@
 package infrastructure.cloud;
 
 import core.SensorData;
+import utils.AESUtil;
 import utils.KeyManager;
+import utils.RSAUtil;
 
+import javax.crypto.SecretKey;
 import java.io.*;
 import java.net.*;
 import java.security.PrivateKey;
@@ -42,30 +45,58 @@ public class DatacenterService {
     }
 
     private void handleClient(Socket socket) {
-        try (ObjectInputStream ois = new ObjectInputStream(socket.getInputStream())) {
+        try (InputStream in = socket.getInputStream()) {
 
-            // Lógica de Descriptografia Híbrida (TCP)
-            // Aqui simplificaremos: Recebemos um objeto encapsulando chave+dados ou lemos bytes
-            // Para simplificar via TCP Object Stream, podemos receber um objeto customizado "EncryptedPackage"
-            // Mas vamos manter a lógica de bytes brutos para consistência com o requisito de segurança.
+            // 1. Ler todos os bytes recebidos da Borda
+            // Como é uma conexão curta, podemos ler até o fim da stream (-1)
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            byte[] data = new byte[1024]; // Buffer de leitura
+            int nRead;
+            while ((nRead = in.read(data, 0, data.length)) != -1) {
+                buffer.write(data, 0, nRead);
+            }
+            buffer.flush();
+            byte[] fullMessage = buffer.toByteArray();
 
-            // O código aqui seria similar ao da Borda, mas lendo do InputStream
-            // Por brevidade, vamos assumir que a Borda já manda o SensorData (EM UMA IMPLEMENTAÇÃO REAL, AQUI TERIA CRIPTOGRAFIA DE NOVO)
-
-            Object received = ois.readObject();
-            if (received instanceof SensorData) {
-                SensorData data = (SensorData) received;
-                synchronized (database) {
-                    database.add(data);
-                }
-                System.out.println("☁️ Datacenter: Dado armazenado no DB: " + data.getDeviceId());
+            // Verifica se a mensagem tem pelo menos o tamanho do cabeçalho RSA
+            if (fullMessage.length <= 256) {
+                System.err.println("☁️ Datacenter: Mensagem recebida muito curta ou vazia.");
+                return;
             }
 
+            // 2. Separar Chave Criptografada (256 bytes) do Payload
+            byte[] encryptedKey = new byte[256];
+            byte[] encryptedPayload = new byte[fullMessage.length - 256];
+
+            System.arraycopy(fullMessage, 0, encryptedKey, 0, 256);
+            System.arraycopy(fullMessage, 256, encryptedPayload, 0, encryptedPayload.length);
+
+            // 3. Descriptografar a Chave AES (Usando a Privada do Datacenter)
+            byte[] aesKeyBytes = RSAUtil.decrypt(encryptedKey, privateKey);
+            SecretKey sessionKey = AESUtil.bytesToKey(aesKeyBytes);
+
+            // 4. Descriptografar o Payload
+            byte[] decryptedPayload = AESUtil.decrypt(encryptedPayload, sessionKey);
+
+            // 5. Desserializar o Objeto
+            try (ByteArrayInputStream bis = new ByteArrayInputStream(decryptedPayload);
+                 ObjectInputStream ois = new ObjectInputStream(bis)) {
+
+                Object received = ois.readObject();
+                if (received instanceof SensorData) {
+                    SensorData sensorData = (SensorData) received;
+
+                    synchronized (database) {
+                        database.add(sensorData);
+                    }
+                    System.out.println("☁️ Datacenter: Recebido Seguro e Armazenado: " + sensorData.getDeviceId());
+                }
+            }
         } catch (Exception e) {
-            System.err.println("☁️ Datacenter: Erro na conexão: " + e.getMessage());
+            System.err.println("☁️ Datacenter: Erro de Descriptografia/Conexão: " + e.getMessage());
+            e.printStackTrace();
         }
     }
-
 
     public static List<SensorData> getDatabase() {
         return database;
