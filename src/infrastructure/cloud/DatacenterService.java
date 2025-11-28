@@ -48,8 +48,6 @@ public class DatacenterService {
     private void handleClient(Socket socket) {
         try (InputStream in = socket.getInputStream()) {
 
-            // 1. Ler todos os bytes recebidos da Borda
-            // Como é uma conexão curta, podemos ler até o fim da stream (-1)
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
             byte[] data = new byte[1024]; // Buffer de leitura
             int nRead;
@@ -65,21 +63,17 @@ public class DatacenterService {
                 return;
             }
 
-            // 2. Separar Chave Criptografada (256 bytes) do Payload
             byte[] encryptedKey = new byte[256];
             byte[] encryptedPayload = new byte[fullMessage.length - 256];
 
             System.arraycopy(fullMessage, 0, encryptedKey, 0, 256);
             System.arraycopy(fullMessage, 256, encryptedPayload, 0, encryptedPayload.length);
 
-            // 3. Descriptografar a Chave AES (Usando a Privada do Datacenter)
             byte[] aesKeyBytes = RSAUtil.decrypt(encryptedKey, privateKey);
             SecretKey sessionKey = AESUtil.bytesToKey(aesKeyBytes);
 
-            // 4. Descriptografar o Payload
             byte[] decryptedPayload = AESUtil.decrypt(encryptedPayload, sessionKey);
 
-            // 5. Desserializar o Objeto
             try (ByteArrayInputStream bis = new ByteArrayInputStream(decryptedPayload);
                  ObjectInputStream ois = new ObjectInputStream(bis)) {
 
@@ -99,10 +93,8 @@ public class DatacenterService {
         }
     }
 
-    // --- 🌐 SIMULAÇÃO DE SERVIDOR HTTP (Router) ---
 
     public static String processHttpRequest(String method, String path, String authToken) {
-        // 1. Simulação de Middleware de Autenticação
         if (!authToken.equals("admin_secret_123")) {
             return "HTTP/1.1 403 FORBIDDEN\n\nErro: Acesso Negado via Token.";
         }
@@ -113,7 +105,6 @@ public class DatacenterService {
 
         String responseBody = "";
 
-        // 2. Roteamento (Controller)
         switch (path) {
             case "/api/reports/pollution":
                 responseBody = reportPollutionIndex();
@@ -134,7 +125,6 @@ public class DatacenterService {
                 return "HTTP/1.1 404 NOT FOUND\n\nEndpoint não encontrado.";
         }
 
-        // 3. Montagem da Resposta HTTP
         return "HTTP/1.1 200 OK\n" +
                 "Date: " + new Date() + "\n" +
                 "Content-Type: text/plain; charset=utf-8\n" +
@@ -143,12 +133,8 @@ public class DatacenterService {
                 responseBody;
     }
 
-    // --- 📊 OS 5 RELATÓRIOS DETALHADOS ---
 
-    /**
-     * 1. Relatório de Qualidade do Ar (AQI)
-     * Calcula a média de PM2.5 e CO2 por dispositivo.
-     */
+    //Relatório de Qualidade do Ar (AQI)
     private static String reportPollutionIndex() {
         StringBuilder sb = new StringBuilder("=== 🏭 RELATÓRIO DE QUALIDADE DO AR (Médias) ===\n");
 
@@ -166,10 +152,7 @@ public class DatacenterService {
         return sb.toString();
     }
 
-    /**
-     * 2. Alertas de Segurança Pública (Ruído e Temp)
-     * Detecta barulho excessivo (tiroteio/festas) ou incêndios (temp alta).
-     */
+    //Alertas de Segurança Pública (Ruído e Temp)
     private static String reportSafetyAlerts() {
         StringBuilder sb = new StringBuilder("=== 🚨 ALERTAS DE SEGURANÇA E EMERGÊNCIA ===\n");
 
@@ -184,10 +167,7 @@ public class DatacenterService {
         return sb.toString();
     }
 
-    /**
-     * 3. Recomendações de Saúde (Baseado em UV e Umidade)
-     * Gera dicas para a população.
-     */
+    // Recomendações de Saúde (Baseado em UV e Umidade)
     private static String reportHealthRecommendations() {
         double avgUV = database.stream().mapToDouble(SensorData::getUvIndex).average().orElse(0);
         double avgHum = database.stream().mapToDouble(SensorData::getHumidity).average().orElse(0);
@@ -205,10 +185,7 @@ public class DatacenterService {
         return sb.toString();
     }
 
-    /**
-     * 4. Status de Manutenção dos Sensores
-     * Conta quantos pacotes cada sensor enviou para ver se algum está falhando.
-     */
+    //Status de Manutenção dos Sensores
     private static String reportDeviceStatus() {
         StringBuilder sb = new StringBuilder("=== 🛠️ STATUS TÉCNICO DA REDE ===\n");
 
@@ -222,10 +199,7 @@ public class DatacenterService {
         return sb.toString();
     }
 
-    /**
-     * 5. Previsão de Tendências (Temperatura)
-     * Compara o início e o fim da coleta para prever subida ou descida.
-     */
+    //Previsão de Tendências (Temperatura)
     private static String reportFutureTrends() {
         if (database.size() < 4) return "Dados insuficientes para previsão.";
 

@@ -2,6 +2,7 @@ import domain.client.ClientApp;
 import infrastructure.cloud.DatacenterService;
 import domain.device.Device;
 import infrastructure.edge.EdgeServer;
+import utils.KeyManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,6 +10,8 @@ import java.util.List;
 public class Main {
     public static void main(String[] args) {
         System.out.println("--- Iniciando Infraestrutura da Simulação ---");
+
+        KeyManager.generateAndSaveAllKeys();
 
         // 1. Infraestrutura
         new DatacenterService().start();
