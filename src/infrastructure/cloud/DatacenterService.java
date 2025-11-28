@@ -10,6 +10,7 @@ import java.io.*;
 import java.net.*;
 import java.security.PrivateKey;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -98,55 +99,144 @@ public class DatacenterService {
         }
     }
 
-    public static List<SensorData> getDatabase() {
-        return database;
+    // --- 🌐 SIMULAÇÃO DE SERVIDOR HTTP (Router) ---
+
+    public static String processHttpRequest(String method, String path, String authToken) {
+        // 1. Simulação de Middleware de Autenticação
+        if (!authToken.equals("admin_secret_123")) {
+            return "HTTP/1.1 403 FORBIDDEN\n\nErro: Acesso Negado via Token.";
+        }
+
+        if (!method.equals("GET")) {
+            return "HTTP/1.1 405 METHOD NOT ALLOWED\n\nApenas GET é suportado.";
+        }
+
+        String responseBody = "";
+
+        // 2. Roteamento (Controller)
+        switch (path) {
+            case "/api/reports/pollution":
+                responseBody = reportPollutionIndex();
+                break;
+            case "/api/alerts/safety":
+                responseBody = reportSafetyAlerts();
+                break;
+            case "/api/health/recommendations":
+                responseBody = reportHealthRecommendations();
+                break;
+            case "/api/maintenance/status":
+                responseBody = reportDeviceStatus();
+                break;
+            case "/api/forecast/trends":
+                responseBody = reportFutureTrends();
+                break;
+            default:
+                return "HTTP/1.1 404 NOT FOUND\n\nEndpoint não encontrado.";
+        }
+
+        // 3. Montagem da Resposta HTTP
+        return "HTTP/1.1 200 OK\n" +
+                "Date: " + new Date() + "\n" +
+                "Content-Type: text/plain; charset=utf-8\n" +
+                "Content-Length: " + responseBody.length() + "\n" +
+                "\n" +
+                responseBody;
     }
 
-    // Relatório: Média de Poluentes por Bairro (Baseado no ID do dispositivo)
-    public static String generatePollutionReport() {
-        if (database.isEmpty()) return "Nenhum dado disponível para relatório.";
+    // --- 📊 OS 5 RELATÓRIOS DETALHADOS ---
 
-        // Agrupa por dispositivo e calcula média de CO2
+    /**
+     * 1. Relatório de Qualidade do Ar (AQI)
+     * Calcula a média de PM2.5 e CO2 por dispositivo.
+     */
+    private static String reportPollutionIndex() {
+        StringBuilder sb = new StringBuilder("=== 🏭 RELATÓRIO DE QUALIDADE DO AR (Médias) ===\n");
+
+        Map<String, Double> avgPM25 = database.stream()
+                .collect(Collectors.groupingBy(SensorData::getDeviceId, Collectors.averagingDouble(SensorData::getPm25)));
+
         Map<String, Double> avgCO2 = database.stream()
-                .collect(Collectors.groupingBy(
-                        SensorData::getDeviceId,
-                        Collectors.averagingDouble(SensorData::getCo2)
-                ));
+                .collect(Collectors.groupingBy(SensorData::getDeviceId, Collectors.averagingDouble(SensorData::getCo2)));
 
-        StringBuilder sb = new StringBuilder("=== RELATÓRIO DE POLUIÇÃO (Média CO2) ===\n");
-        avgCO2.forEach((device, value) ->
-                sb.append(String.format(" - %s: %.2f ppm\n", device, value)));
+        avgPM25.forEach((device, pm) -> {
+            double co2 = avgCO2.getOrDefault(device, 0.0);
+            String status = (pm > 25 || co2 > 1000) ? "[RUIM]" : "[BOM]";
+            sb.append(String.format(" %s %s -> PM2.5: %.1f | CO2: %.0f ppm\n", status, device, pm, co2));
+        });
+        return sb.toString();
+    }
+
+    /**
+     * 2. Alertas de Segurança Pública (Ruído e Temp)
+     * Detecta barulho excessivo (tiroteio/festas) ou incêndios (temp alta).
+     */
+    private static String reportSafetyAlerts() {
+        StringBuilder sb = new StringBuilder("=== 🚨 ALERTAS DE SEGURANÇA E EMERGÊNCIA ===\n");
+
+        long noiseAlerts = database.stream().filter(d -> d.getNoiseLevel() > 75.0).count();
+        long fireRisk = database.stream().filter(d -> d.getTemperature() > 50.0).count(); // Exagero para teste
+
+        if (noiseAlerts == 0 && fireRisk == 0) return sb.append("✅ Nenhum incidente de segurança detectado.").toString();
+
+        if (noiseAlerts > 0) sb.append(String.format("⚠️ ALERTA: %d ocorrências de ruído excessivo (>75dB).\n", noiseAlerts));
+        if (fireRisk > 0) sb.append(String.format("🔥 PERIGO: %d sensores detectaram calor extremo (>50°C)!\n", fireRisk));
 
         return sb.toString();
     }
 
-    //Alerta: Pico de Ruído Urbano
-    //Identifica áreas que ultrapassaram 75dB (limite de estresse acústico).
-    public static String checkNoiseAlerts() {
-        long highNoiseCount = database.stream()
-                .filter(d -> d.getNoiseLevel() > 75.0)
-                .count();
+    /**
+     * 3. Recomendações de Saúde (Baseado em UV e Umidade)
+     * Gera dicas para a população.
+     */
+    private static String reportHealthRecommendations() {
+        double avgUV = database.stream().mapToDouble(SensorData::getUvIndex).average().orElse(0);
+        double avgHum = database.stream().mapToDouble(SensorData::getHumidity).average().orElse(0);
 
-        if (highNoiseCount > 0) {
-            return "⚠️ ALERTA CRÍTICO: Detectados " + highNoiseCount + " registros de ruído acima de 75dB! Ação recomendada: Fiscalização de trânsito.";
-        }
-        return "✅ Nível de ruído urbano dentro dos limites aceitáveis.";
+        StringBuilder sb = new StringBuilder("=== 🏥 BOLETIM DE SAÚDE PÚBLICA ===\n");
+        sb.append(String.format(" - Índice UV Médio: %.1f\n - Umidade Média: %.1f%%\n\n", avgUV, avgHum));
+
+        sb.append("RECOMENDAÇÕES:\n");
+        if (avgUV > 6.0) sb.append(" ☀️ ALTO RISCO UV: Use protetor solar e evite exposição direta.\n");
+        else sb.append(" ☁️ UV Baixo: Exposição segura.\n");
+
+        if (avgHum < 30.0) sb.append(" 💧 AR SECO: Hidrate-se e evite exercícios ao ar livre.\n");
+        else sb.append(" 🏃 Umidade ideal para práticas esportivas.\n");
+
+        return sb.toString();
     }
 
-    //Previsão Simples: Tendência de Temperatura
-    //Compara a primeira metade dos dados com a segunda para ver se está esquentando.
-    public static String predictTemperatureTrend() {
-        if (database.size() < 10) return "Dados insuficientes para previsão.";
+    /**
+     * 4. Status de Manutenção dos Sensores
+     * Conta quantos pacotes cada sensor enviou para ver se algum está falhando.
+     */
+    private static String reportDeviceStatus() {
+        StringBuilder sb = new StringBuilder("=== 🛠️ STATUS TÉCNICO DA REDE ===\n");
+
+        Map<String, Long> msgCount = database.stream()
+                .collect(Collectors.groupingBy(SensorData::getDeviceId, Collectors.counting()));
+
+        msgCount.forEach((device, count) -> {
+            String health = count < 3 ? "⚠️ VERIFICAR" : "✅ ONLINE";
+            sb.append(String.format("Device: %-15s | Pkts: %02d | Status: %s\n", device, count, health));
+        });
+        return sb.toString();
+    }
+
+    /**
+     * 5. Previsão de Tendências (Temperatura)
+     * Compara o início e o fim da coleta para prever subida ou descida.
+     */
+    private static String reportFutureTrends() {
+        if (database.size() < 4) return "Dados insuficientes para previsão.";
 
         int split = database.size() / 2;
-        double avgFirstHalf = database.subList(0, split).stream().mapToDouble(SensorData::getTemperature).average().orElse(0);
-        double avgSecondHalf = database.subList(split, database.size()).stream().mapToDouble(SensorData::getTemperature).average().orElse(0);
+        double firstHalfAvg = database.subList(0, split).stream().mapToDouble(SensorData::getTemperature).average().orElse(0);
+        double secondHalfAvg = database.subList(split, database.size()).stream().mapToDouble(SensorData::getTemperature).average().orElse(0);
 
-        if (avgSecondHalf > avgFirstHalf + 0.5) {
-            return "📈 PREVISÃO: Tendência de AUMENTO de temperatura detectada nas últimas horas.";
-        } else if (avgSecondHalf < avgFirstHalf - 0.5) {
-            return "📉 PREVISÃO: Tendência de QUEDA de temperatura.";
-        }
-        return "➡️ PREVISÃO: Temperatura estável.";
+        String arrow = (secondHalfAvg > firstHalfAvg) ? "📈 EM ALTA" : "📉 EM QUEDA";
+
+        return String.format("=== 🔮 PREVISÃO METEOROLÓGICA ===\n" +
+                "Tendência Térmica: %s\n" +
+                "Variação calculada: %.2f°C -> %.2f°C", arrow, firstHalfAvg, secondHalfAvg);
     }
 }

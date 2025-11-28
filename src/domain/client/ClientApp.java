@@ -1,6 +1,5 @@
 package domain.client;
 
-import infrastructure.auth.AuthService;
 import infrastructure.cloud.DatacenterService;
 
 public class ClientApp {
@@ -14,40 +13,41 @@ public class ClientApp {
     }
 
     public void start() {
-        System.out.println("\n💻 CLIENTE " + clientId + " INICIANDO...");
+        System.out.println("___________________________________________________________");
+        System.out.println("💻 CLIENTE " + clientId + " INICIANDO SESSÃO HTTP...");
 
-        if (!AuthService.authenticate(clientId, token)) {
-            System.err.println("⛔ Acesso negado: Credenciais do cliente inválidas.");
-            return;
-        }
+        // Simulação de delay de rede
+        try { Thread.sleep(1000); } catch (Exception e) {}
 
-        System.out.println("✅ Cliente autenticado. Conectando ao Datacenter...");
+        // Executa as 5 Consultas Requisitadas
+        performSimulatedRequest("GET", "/api/reports/pollution");
+        performSimulatedRequest("GET", "/api/alerts/safety");
+        performSimulatedRequest("GET", "/api/health/recommendations");
+        performSimulatedRequest("GET", "/api/maintenance/status");
+        performSimulatedRequest("GET", "/api/forecast/trends");
 
-        // 2. Simulação de Consulta ao Datacenter
-        // Como o Datacenter está no mesmo processo Java nesta simulação, podemos acessar métodos estáticos
-        // OU fazer uma conexão TCP separada para pedir o relatório.
-        // Para ficar mais robusto e "simulado", vamos acessar diretamente os métodos estáticos do Datacenter
-        // fingindo que foi uma chamada de API (visto que já testamos TCP extensivamente na Borda).
+        // Teste de Erro (404)
+        performSimulatedRequest("GET", "/api/invalid/endpoint");
+    }
 
-        try {
-            // Simulando latência de rede
-            Thread.sleep(1000);
+    /**
+     * Simula o envio de uma requisição HTTP via socket e a impressão da resposta.
+     */
+    private void performSimulatedRequest(String method, String url) {
+        System.out.println("\n-----------------------------------------------------------");
+        System.out.println("📤 ENVIANDO REQUISIÇÃO:");
+        System.out.println(method + " " + url + " HTTP/1.1");
+        System.out.println("Host: datacenter.smartcity.br");
+        System.out.println("Authorization: Bearer " + "*****"); // Oculta o token no log visual
+        System.out.println("-----------------------------------------------------------");
 
-            System.out.println("\n--- 🔎 CONSULTA 1: Monitoramento de Poluição ---");
-            String report1 = DatacenterService.generatePollutionReport();
-            System.out.println(report1);
+        // Aqui a mágica acontece: chamamos o "Router" do Datacenter simulando a rede
+        // Na prática real, isso seria: socket.getOutputStream().write(...)
+        String rawResponse = DatacenterService.processHttpRequest(method, url, this.token);
 
-            Thread.sleep(1500);
+        System.out.println("📥 RESPOSTA RECEBIDA:");
+        System.out.println(rawResponse);
 
-            System.out.println("\n--- 🔎 CONSULTA 2: Alertas de Segurança Urbana ---");
-            String alert = DatacenterService.checkNoiseAlerts();
-            System.out.println(alert);
-
-            String prediction = DatacenterService.predictTemperatureTrend();
-            System.out.println(prediction);
-
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        try { Thread.sleep(1500); } catch (Exception e) {} // Pausa para leitura
     }
 }
