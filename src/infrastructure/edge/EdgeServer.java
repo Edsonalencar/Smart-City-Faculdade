@@ -7,15 +7,19 @@ import java.net.*;
 import java.io.*;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.crypto.SecretKey;
 
 public class EdgeServer {
     private static final String DC_HOST = "localhost";
-    private static final int DC_PORT = 9999;
+    private static final int PROXY_SERVER = 9900;
 
     private static final int EDGE_PORT = 9876;
     private PrivateKey edgePrivateKey;
     private PublicKey dcPublicKey;
+
+    private Set<String> blockedDevices = ConcurrentHashMap.newKeySet();
 
     private boolean running; // Controle para poder parar o servidor se necessário
 
@@ -32,6 +36,10 @@ public class EdgeServer {
 
     public void start() {
         this.running = true;
+
+        // Inicia Thread Administrativa (Ouvindo o IDS)
+        new Thread(this::startAdminInterface).start();
+
         // Cria uma Thread dedicada para o servidor não travar o main
         new Thread(this::runServer).start();
     }
@@ -56,6 +64,26 @@ public class EdgeServer {
             }
         } catch (Exception e) {
             System.err.println("❌ Erro no Servidor de Borda: " + e.getMessage());
+        }
+    }
+
+    private void startAdminInterface() {
+        try (ServerSocket adminSocket = new ServerSocket(9877)) {
+            System.out.println("👮 Borda: Interface Admin ouvindo na porta 9877...");
+            while (true) {
+                try (Socket client = adminSocket.accept();
+                     BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()))) {
+
+                    String command = in.readLine();
+                    if (command != null && command.startsWith("BLOCK")) {
+                        String deviceId = command.split(" ")[1];
+                        blockedDevices.add(deviceId);
+                        System.out.println("⛔ Borda: DISPOSITIVO BLOQUEADO POR ORDEM DO IDS: " + deviceId);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -84,7 +112,18 @@ public class EdgeServer {
                  ObjectInputStream ois = new ObjectInputStream(bis)) {
 
                 SensorData data = (SensorData) ois.readObject();
-                // Simula um processamento/análise
+
+                if (blockedDevices.contains(data.getDeviceId())) {
+                    System.out.println("🗑️ Borda: Pacote descartado de dispositivo bloqueado: " + data.getDeviceId());
+                    return;
+                }
+
+                if (isDataAnomalous(data)) {
+                    System.out.println("⚠️ Borda: ANOMALIA DETECTADA em " + data.getDeviceId() + ". Notificando IDS...");
+                    notifyIDS("ANOMALIA_DETECTADA: " + data.getDeviceId() + " Temp=" + data.getTemperature());
+                    return; // Não processa nem envia ao Datacenter
+                }
+
                 System.out.println("✅ [THREAD " + Thread.currentThread().getId() + "] Borda recebeu de " + data.toString());
                 sendToDatacenter(data);
             }
@@ -109,7 +148,7 @@ public class EdgeServer {
                 throw new IllegalStateException("Tamanho de chave criptografada incorreto!");
             }
 
-            try (Socket socket = new Socket(DC_HOST, DC_PORT);
+            try (Socket socket = new Socket(DC_HOST, PROXY_SERVER);
                  OutputStream out = socket.getOutputStream()) {
 
                 out.write(encryptedAesKey);
@@ -120,6 +159,19 @@ public class EdgeServer {
             System.out.println("➡️ Borda: Dados encaminhados criptografados ao Datacenter.");
         } catch (Exception e) {
             System.err.println("⚠️ Borda: Falha ao enviar ao Datacenter: " + e.getMessage());
+        }
+    }
+
+    private boolean isDataAnomalous(SensorData data) {
+        return data.getTemperature() > 100.0 || data.getTemperature() < -50.0;
+    }
+
+    private void notifyIDS(String msg) {
+        try (Socket idsSocket = new Socket("localhost", 7000);
+             PrintWriter out = new PrintWriter(idsSocket.getOutputStream(), true)) {
+            out.println(msg);
+        } catch (IOException e) {
+            System.err.println("Erro ao notificar IDS: " + e.getMessage());
         }
     }
 }

@@ -13,6 +13,8 @@ import java.security.PublicKey;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Device implements Runnable {
+    protected int targetPort = 9800;
+
     private final String deviceId;
     private final String token;
     private PublicKey edgePublicKey;
@@ -27,6 +29,14 @@ public class Device implements Runnable {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    protected SensorData generateData() {
+        return SensorDataGenerator.generate(deviceId);
+    }
+
+    public void setTargetPort(int port) {
+        this.targetPort = port;
     }
 
     public void stop() {
@@ -55,12 +65,12 @@ public class Device implements Runnable {
             // Loop verifica a flag 'running' a cada iteração
             while (running.get()) {
 
-                SensorData data = SensorDataGenerator.generate(deviceId);
+                SensorData data = generateData();
                 byte[] encryptedMessage = EncryptMessageUtil.encryptedHybridMessage(data, edgePublicKey);
 
                 DatagramPacket sendPacket = new DatagramPacket(
                     encryptedMessage, encryptedMessage.length,
-                    InetAddress.getByName("localhost"), 9876
+                    InetAddress.getByName("localhost"), targetPort
                 );
 
                 clientSocket.send(sendPacket);
