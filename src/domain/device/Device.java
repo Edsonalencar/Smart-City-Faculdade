@@ -6,6 +6,8 @@ import infrastructure.auth.AuthService;
 import utils.EncryptMessageUtil;
 import utils.KeyManager;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -17,13 +19,16 @@ public class Device implements Runnable {
 
     private final String deviceId;
     private final String token;
+    private final String sourceIp;
+
     private PublicKey edgePublicKey;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    public Device(String id, String token) {
+    public Device(String id, String token, String sourceIp) {
         this.deviceId = id;
         this.token = token;
+        this.sourceIp = sourceIp;
         try {
             this.edgePublicKey = (PublicKey) KeyManager.loadKeyFromFile("edge_public.key");
         } catch (Exception e) {
@@ -68,8 +73,10 @@ public class Device implements Runnable {
                 SensorData data = generateData();
                 byte[] encryptedMessage = EncryptMessageUtil.encryptedHybridMessage(data, edgePublicKey);
 
+                byte[] packetWithIpHeader = wrapWithIpHeader(encryptedMessage);
+
                 DatagramPacket sendPacket = new DatagramPacket(
-                    encryptedMessage, encryptedMessage.length,
+                    packetWithIpHeader, packetWithIpHeader.length,
                     InetAddress.getByName("localhost"), targetPort
                 );
 
@@ -87,5 +94,16 @@ public class Device implements Runnable {
         }
 
         System.out.println("💤 Dispositivo " + deviceId + ": Desligado.");
+    }
+
+    private byte[] wrapWithIpHeader(byte[] payload) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(baos);
+
+        dos.writeUTF(this.sourceIp); // Escreve o IP (String)
+        dos.writeInt(payload.length); // Escreve o tamanho do payload
+        dos.write(payload);           // Escreve o payload criptografado
+
+        return baos.toByteArray();
     }
 }

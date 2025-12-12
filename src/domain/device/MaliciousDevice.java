@@ -4,8 +4,8 @@ import core.SensorData;
 
 public class MaliciousDevice extends Device {
 
-    public MaliciousDevice(String id, String token) {
-        super(id, token);
+    public MaliciousDevice(String id, String token, String ip) {
+        super(id, token, ip);
     }
 
     @Override
