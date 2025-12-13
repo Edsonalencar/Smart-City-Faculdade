@@ -15,7 +15,7 @@ import java.security.PublicKey;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Device implements Runnable {
-    protected int targetPort = 9800;
+    protected int targetPort = 9002;
 
     private final String deviceId;
     private final String token;

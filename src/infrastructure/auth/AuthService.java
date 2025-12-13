@@ -55,7 +55,7 @@ public class AuthService {
                         System.out.println("🔑 AuthServer: " + id + " autenticado.");
                     } else {
                         out.println("FAIL");
-                        System.out.println("⛔ AuthServer: Falha para " + id);
+                        System.err.println("⛔ AuthServer: Falha para " + id);
                     }
                 }
             } catch (Exception e) { e.printStackTrace(); }
