@@ -21,8 +21,7 @@ public class KeyManager {
 
     public static void generateAndSaveAllKeys() {
         try {
-            System.out.println("--- Gerando Chaves RSA para o Sistema ---");
-
+            System.out.println("--- GERANDO CHAVES RSA PARA O SISTEMA ---");
             // Borda
             KeyPair edgeKeys = RSAUtil.generateKeyPair();
             saveKeyToFile(edgeKeys.getPublic(), "edge_public.key");

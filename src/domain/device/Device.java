@@ -6,11 +6,11 @@ import infrastructure.auth.AuthService;
 import utils.EncryptMessageUtil;
 import utils.KeyManager;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
+import java.io.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.Socket;
 import java.security.PublicKey;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -55,13 +55,26 @@ public class Device implements Runnable {
     }
 
     public void startSending() {
-        // 1. Autenticação
-        System.out.println("🔐 Dispositivo " + deviceId + ": Tentando autenticação...");
-        if (!AuthService.authenticate(deviceId, token)) {
-            System.err.println("⛔ ERRO FATAL: Dispositivo " + deviceId + " falhou na autenticação!");
+        System.out.println("📍 Dispositivo " + deviceId + ": Buscando servidor de borda...");
+
+        String targetAddress = queryLocationServer();
+        if (targetAddress == null) {
+            System.err.println("❌ Erro ao localizar serviço.");
             return;
         }
-        System.out.println("✅ Dispositivo " + deviceId + ": Autenticado! Iniciando envio...");
+
+        // Parse do endereço (localhost:9800)
+        String host = targetAddress.split(":")[0];
+        int port = Integer.parseInt(targetAddress.split(":")[1]);
+        this.targetPort = port; // Atualiza dinamicamente!
+
+        System.out.println("🔐 Dispositivo " + deviceId + ": Solicitando autenticação remota...");
+        if (!performRemoteAuth()) {
+            System.err.println("⛔ ERRO FATAL: Falha na autenticação remota!");
+            return;
+        }
+
+        System.out.println("✅ Dispositivo " + deviceId + ": Pronto. Enviando para " + host + ":" + port);
 
         // Define como rodando
         running.set(true);
@@ -105,5 +118,23 @@ public class Device implements Runnable {
         dos.write(payload);           // Escreve o payload criptografado
 
         return baos.toByteArray();
+    }
+
+    private String queryLocationServer() {
+        try (Socket s = new Socket("localhost", 9002);
+             BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()))) {
+            return in.readLine();
+        } catch (Exception e) { return null; }
+    }
+
+    private boolean performRemoteAuth() {
+        try (Socket s = new Socket("localhost", 9001);
+             PrintWriter out = new PrintWriter(s.getOutputStream(), true);
+             BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()))) {
+
+            out.println(deviceId + ":" + token);
+            String response = in.readLine();
+            return "OK".equals(response);
+        } catch (Exception e) { return false; }
     }
 }

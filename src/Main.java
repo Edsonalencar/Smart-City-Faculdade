@@ -1,11 +1,13 @@
 import domain.client.ClientApp;
 import domain.device.Device;
 import domain.device.MaliciousDevice;
+import infrastructure.auth.AuthService;
 import infrastructure.cloud.DatacenterService;
 import infrastructure.edge.EdgeServer;
 import infrastructure.firewall.PacketFilter;
 import infrastructure.firewall.ProxyServer;
 import infrastructure.ids.IDS;
+import infrastructure.location.LocationServer;
 import utils.KeyManager;
 
 import java.util.ArrayList;
@@ -13,18 +15,26 @@ import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("--- Iniciando Infraestrutura da Simulação ---");
+        System.out.println("--- INICIANDO SIMULAÇÃO---\n\n");
 
         KeyManager.generateAndSaveAllKeys();
 
-        // 1. Infraestrutura
+        System.out.println("\n--- INICIANDO SERVIÇOS AUXILIARES ---");
+        new AuthService().start();
+        new LocationServer().start();
+
+        try { Thread.sleep(1000); } catch (Exception e) {}
+
+        System.out.println("\n--- INICIANDO ARQUITETURA DE SEGURANÇA ---");
         new IDS().start(); // Intrusion Detection System
         new ProxyServer().start();
         new DatacenterService().start();
         new EdgeServer().start();
         new PacketFilter().start();
 
-        System.out.println("--- Iniciando Dispositivos ---");
+        try { Thread.sleep(1000); } catch (Exception e) {}
+
+        System.out.println("\n--- INICIANDO DISPOSITIVOS ---");
 
         // Lista para guardar referência aos objetos Device
         List<Device> activeDevices = new ArrayList<>();
@@ -61,7 +71,9 @@ public class Main {
         new Thread(dev5).start();
         new Thread(dev6).start();
 
-        System.out.println("\n⏳ Coletando dados por 15 segundos...\n");
+        try { Thread.sleep(1000); } catch (Exception e) {}
+
+        System.out.println("\n\n⏳ Coletando dados por 15 segundos...");
 
         try {
             Thread.sleep(15000); // Roda a simulação por 15s
@@ -69,7 +81,7 @@ public class Main {
             e.printStackTrace();
         }
 
-        System.out.println("\n🛑 TEMPO ESGOTADO. PARANDO TODOS OS DISPOSITIVOS...\n");
+        System.out.println("\n\n🛑 TEMPO ESGOTADO. PARANDO TODOS OS DISPOSITIVOS...\n\n");
 
         for (Device d : activeDevices) {
             d.stop();
